@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math/big"
 	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -15,21 +16,30 @@ import (
 	"github.com/rs/zerolog"
 )
 
-const defaultDBPath = "/tmp/jarvis_ethdb"
+const (
+	defaultDBPath = "/tmp/jarvis_ethdb"
+)
 
 // ETHClient represents ethereum client with database.
 type ETHClient struct {
-	logger      zerolog.Logger
-	db          db.DB
-	client      *ethclient.Client
-	clientMutex sync.Mutex
-	once        sync.Once
-	ctx         context.Context
+	logger       zerolog.Logger
+	db           db.DB
+	client       *ethclient.Client
+	clientMutex  sync.Mutex
+	once         sync.Once
+	ctx          context.Context
+	url          string
+	streamURL    string
+	nbConcurrent int
 }
 
 // NewClient returns Ethereum client
 func NewClient(config *Config) (Client, error) {
-	c, err := ethclient.Dial(config.URL)
+	if config.Ctx == nil {
+		config.Ctx = context.Background()
+	}
+
+	c, err := ethclient.DialContext(config.Ctx, config.URL)
 	if err != nil {
 		return nil, err
 	}
@@ -45,17 +55,20 @@ func NewClient(config *Config) (Client, error) {
 	}
 
 	client := &ETHClient{
-		client: c,
-		db:     db,
-		ctx:    context.Background(),
-	}
-
-	if config.Ctx != nil {
-		client.ctx = config.Ctx
+		client:       c,
+		db:           db,
+		ctx:          config.Ctx,
+		url:          config.URL,
+		streamURL:    config.StreamURL,
+		nbConcurrent: defaultMaxConcurrents,
 	}
 
 	if config.Logger != nil {
 		client.logger = *config.Logger
+	}
+
+	if config.ConcurrentNumber != 0 {
+		client.nbConcurrent = config.ConcurrentNumber
 	}
 
 	return client, nil
@@ -70,13 +83,14 @@ func (c *ETHClient) GetBlockByNumber(number uint64) (*types.Block, error) {
 	if block, err := c.db.BlockByNumber(number); err == nil {
 		return block, err
 	}
-	// FIXME : if block is not in db, code below is not called.
+
 	c.clientMutex.Lock()
 	defer c.clientMutex.Unlock()
 	block, err := c.client.BlockByNumber(c.ctx, big.NewInt(int64(number)))
 	if err != nil {
 		return nil, err
 	}
+
 	b, err := c.proccessBlock(block)
 	if err != nil {
 		return nil, err
@@ -93,12 +107,14 @@ func (c *ETHClient) GetBalance(address string) (*types.Balance, error) {
 
 	c.clientMutex.Lock()
 	defer c.clientMutex.Unlock()
+
 	number, err := c.client.BlockNumber(c.ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	weiAmount, err := c.client.BalanceAt(c.ctx, common.HexToAddress(address), big.NewInt(int64(number)))
+
 	return &types.Balance{
 		Amount: weiToEther(weiAmount),
 		Symbol: types.ETH,
@@ -137,14 +153,22 @@ func (c *ETHClient) GetTransactionsFromNumber(number, limit uint64) (types.Trans
 }
 
 func (c *ETHClient) GetTransactionsForAddress(address string) (types.Transactions, error) {
+	if !common.IsHexAddress(address) {
+		return nil, errors.New("bad ethereum address")
+	}
 	return c.db.TransactionsForAddress(address)
 }
 
 // Run subscribe to new block on Ethereum blockchain.
 func (c *ETHClient) Run() {
+	client, err := ethclient.DialContext(c.ctx, c.streamURL)
+	if err != nil {
+		c.logger.Fatal().Err(err)
+	}
+
 	headers := make(chan *ethtypes.Header)
 	c.clientMutex.Lock()
-	sub, err := c.client.SubscribeNewHead(c.ctx, headers)
+	sub, err := client.SubscribeNewHead(c.ctx, headers)
 	c.clientMutex.Unlock()
 	if err != nil {
 		c.logger.Fatal().Err(err)
@@ -169,25 +193,29 @@ func (c *ETHClient) Run() {
 	}
 }
 
-func (c *ETHClient) processTX(ethTX *ethtypes.Transaction) (*types.Transaction, error) {
+func (c *ETHClient) processTX(ethTX *ethtypes.Transaction) (tx *types.Transaction, err error) {
 	if ethTX == nil || ethTX.To() == nil {
 		return nil, errors.New("contract creation")
 	}
 
-	receipt, err := c.client.TransactionReceipt(c.ctx, ethTX.Hash())
+	client, err := ethclient.DialContext(c.ctx, c.url)
 	if err != nil {
 		return nil, err
 	}
 
-	sender, err := c.client.TransactionSender(c.ctx, ethTX, receipt.BlockHash, receipt.TransactionIndex)
+	receipt, err := client.TransactionReceipt(c.ctx, ethTX.Hash())
 	if err != nil {
 		return nil, err
 	}
 
-	// FIXME : bad fee returned
-	fee := weiToEther(big.NewInt(int64(receipt.GasUsed * ethTX.GasPrice().Uint64())))
+	sender, err := client.TransactionSender(c.ctx, ethTX, receipt.BlockHash, receipt.TransactionIndex)
+	if err != nil {
+		return nil, err
+	}
 
-	return &types.Transaction{
+	fee := weiToEther(big.NewInt(int64(receipt.GasUsed * receipt.EffectiveGasPrice.Uint64())))
+
+	tx = &types.Transaction{
 		BlockNumber: receipt.BlockNumber.Uint64(),
 		Timestamp:   ethTX.Time().Unix(),
 		Hash:        ethTX.Hash().String(),
@@ -195,23 +223,41 @@ func (c *ETHClient) processTX(ethTX *ethtypes.Transaction) (*types.Transaction, 
 		From:        sender.String(),
 		To:          ethTX.To().String(),
 		Amount:      weiToEther(ethTX.Value()),
-	}, nil
-}
-
-func (c *ETHClient) processTXs(ethTXS ...*ethtypes.Transaction) error {
-	var txs types.Transactions
-	for _, ethTX := range ethTXS {
-
-		tx, err := c.processTX(ethTX)
-		if err != nil {
-			c.logger.Error().Err(err)
-			continue
-		}
-
-		txs = append(txs, *tx)
 	}
 
-	return c.db.AddTransactions(txs...)
+	return tx, err
+}
+
+// processTXs convert ethereum transactions to types.Transaction,
+// it using multiple ethclient concurrently.
+func (c *ETHClient) processTXs(ethTXS ...*ethtypes.Transaction) (types.Transactions, error) {
+	var wg sync.WaitGroup
+	var m sync.Mutex
+	var txs types.Transactions
+
+	semaphore := make(chan struct{}, c.nbConcurrent)
+
+	for _, ethTX := range ethTXS {
+		semaphore <- struct{}{}
+		wg.Add(1)
+
+		go func(ethTX *ethtypes.Transaction, semaphore chan struct{}) {
+			defer func() { <-semaphore }()
+			defer wg.Done()
+
+			tx, err := c.processTX(ethTX)
+			if err != nil {
+				c.logger.Error().Err(err)
+				return
+			}
+			m.Lock()
+			txs = append(txs, *tx)
+			m.Unlock()
+		}(ethTX, semaphore)
+	}
+
+	wg.Wait()
+	return txs, c.db.AddTransactions(txs...)
 }
 
 func (c *ETHClient) proccessBlock(ethBlock *ethtypes.Block) (*types.Block, error) {
@@ -223,23 +269,29 @@ func (c *ETHClient) proccessBlock(ethBlock *ethtypes.Block) (*types.Block, error
 		c.db.SetStatus(status)
 	})
 
+	startTime := time.Now()
+
 	b := types.Block{
 		Number:    ethBlock.NumberU64(),
 		Hash:      ethBlock.Hash().String(),
 		Timestamp: ethBlock.Time(),
 		TXS:       types.Transactions{},
 	}
-	c.logger.Info().Any("block_number", b.Number).Msg("addblock")
 
 	err := c.db.AddBlock(b)
 	if err != nil {
 		return nil, err
 	}
 
-	err = c.processTXs(ethBlock.Transactions()...)
+	txs, err := c.processTXs(ethBlock.Transactions()...)
 	if err != nil {
 		return nil, err
 	}
+	b.TXS = txs
+
+	duration := time.Now().Sub(startTime)
+
+	c.logger.Info().Any("block_number", b.Number).Any("process_duration", duration.String()).Msg("block added")
 
 	return &b, c.db.UpdateNumber(b.Number)
 }

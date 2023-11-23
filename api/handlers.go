@@ -74,8 +74,16 @@ func (s *Server) handlerTransactionByHash() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		hash := vars["hash"]
+		blockchain := vars["blockchain"]
 
-		tx, err := s.ethClient.GetTransactionByHash(hash)
+		var tx *types.Transaction
+		var err error
+
+		switch types.Blockchain(blockchain) {
+		case types.Ethereum:
+			tx, err = s.ethClient.GetTransactionByHash(hash)
+		}
+
 		if err != nil {
 			s.writeError(w, err)
 			return
@@ -93,14 +101,23 @@ func (s *Server) handlerTransactionsList() http.HandlerFunc {
 
 func (s *Server) handlerBlockByNumber() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		var block *types.Block
+		var err error
+
 		vars := mux.Vars(r)
+		blockchain := vars["blockchain"]
 
 		number, err := strconv.ParseUint(vars["number"], 10, 64)
 		if err != nil {
 			s.writeError(w, err)
 			return
 		}
-		block, err := s.ethClient.GetBlockByNumber(number)
+
+		switch types.Blockchain(blockchain) {
+		case types.Ethereum:
+			block, err = s.ethClient.GetBlockByNumber(number)
+		}
+
 		if err != nil {
 			s.writeError(w, err)
 			return
@@ -112,27 +129,49 @@ func (s *Server) handlerBlockByNumber() http.HandlerFunc {
 
 func (s *Server) handlerAddressBalance() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
+		var balance *types.Balance
+		var err error
 
-		ethBalance, err := s.ethClient.GetBalance(vars["hash"])
+		vars := mux.Vars(r)
+		blockchain := vars["blockchain"]
+
+		switch types.Blockchain(blockchain) {
+		case types.Ethereum:
+			balance, err = s.ethClient.GetBalance(vars["hash"])
+		}
 		if err != nil {
 			s.Logger.Error().Err(err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		s.writeJSON(w, ethBalance)
+		s.writeJSON(w, balance)
 	}
 }
 
 func (s *Server) handlerAddressTransactions() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// TODO
+		var txs types.Transactions
+		var err error
+
+		vars := mux.Vars(r)
+		blockchain := vars["blockchain"]
+		switch types.Blockchain(blockchain) {
+		case types.Ethereum:
+			txs, err = s.ethClient.GetTransactionsForAddress(vars["address"])
+		}
+		if err != nil {
+			s.Logger.Error().Err(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		s.writeJSON(w, txs)
 	}
 }
 
 func (s *Server) handlerAddressOwner() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// TODO
+		// TODO: implement feature
 	}
 }

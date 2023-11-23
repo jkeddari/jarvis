@@ -7,12 +7,16 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const defaultMaxConcurrents = 50
+
 // Config
 type Config struct {
-	DBPath string
-	URL    string
-	Ctx    context.Context
-	Logger *zerolog.Logger
+	DBPath           string
+	URL              string
+	StreamURL        string
+	Ctx              context.Context
+	ConcurrentNumber int
+	Logger           *zerolog.Logger
 }
 
 type Client interface {

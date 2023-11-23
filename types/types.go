@@ -27,3 +27,10 @@ type Block struct {
 	Timestamp uint64       `json:"timestamps"`
 	TXS       Transactions `json:"transactions"`
 }
+
+type AddressOwner struct {
+	Chain   Blockchain `json:"chain"`
+	Address string     `json:"address"`
+	Owner   Owner      `json:"owner"`
+	Match   float32    `json:"match"`
+}

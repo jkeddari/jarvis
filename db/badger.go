@@ -141,7 +141,7 @@ func (b *badgerDB) Status() (status *types.BlockchainStatus, err error) {
 }
 
 func (b *badgerDB) blockByNumber(number uint64) (block dbBlock, err error) {
-	b.db.View(func(txn *badger.Txn) error {
+	err = b.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get(prefixBlock(number))
 		if err != nil {
 			return err
@@ -241,6 +241,16 @@ func (b *badgerDB) TransactionsForAddress(address string) (txs types.Transaction
 }
 
 func (b *badgerDB) TransactionsFromBlock(number, limit uint64) (types.Transactions, error) {
-	// TODO : feature
+	// TODO: feature
+	return nil, nil
+}
+
+func (b *badgerDB) SetAddressOwner(address string, owner types.Owner, match float64) error {
+	// TODO: feature
+	return nil
+}
+
+func (b *badgerDB) GetAddressOwner(address string) (*types.AddressOwner, error) {
+	// TODO: feature
 	return nil, nil
 }

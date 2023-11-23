@@ -38,4 +38,8 @@ type DB interface {
 
 	// TransactionsForAddress returns all transactions send by the given address.
 	TransactionsForAddress(address string) (types.Transactions, error)
+
+	SetAddressOwner(address string, owner types.Owner, match float64) error
+
+	GetAddressOwner(address string) (*types.AddressOwner, error)
 }
