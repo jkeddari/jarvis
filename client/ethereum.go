@@ -260,6 +260,14 @@ func (c *ETHClient) processTXs(ethTXS ...*ethtypes.Transaction) (types.Transacti
 	return txs, c.db.AddTransactions(txs...)
 }
 
+func (c *ETHClient) GetAddressOwner(address string) (*types.AddressOwner, error) {
+	return c.db.GetAddressOwner(address)
+}
+
+func (c *ETHClient) SetAddressOwner(address string, owner types.Owner, match float64) error {
+	return c.db.SetAddressOwner(address, owner, match)
+}
+
 func (c *ETHClient) proccessBlock(ethBlock *ethtypes.Block) (*types.Block, error) {
 	c.once.Do(func() {
 		status := types.BlockchainStatus{
