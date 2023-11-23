@@ -33,13 +33,12 @@ type DB interface {
 	// TransactionByHash returns transaction with the given hash.
 	TransactionByHash(hash string) (*types.Transaction, error)
 
-	// TransactionsFromBlock returns transactions from the given block number (default limit : 1000)
-	TransactionsFromBlock(number, limit uint64) (types.Transactions, error)
-
 	// TransactionsForAddress returns all transactions send by the given address.
 	TransactionsForAddress(address string) (types.Transactions, error)
 
-	SetAddressOwner(address string, owner types.Owner, match float64) error
+	// SetAddressOwner write new address owner into database.
+	SetAddressOwner(addressOwner types.AddressOwner) error
 
+	// GetAddressOwner returns address owner with the given address.
 	GetAddressOwner(address string) (*types.AddressOwner, error)
 }

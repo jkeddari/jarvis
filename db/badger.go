@@ -240,17 +240,26 @@ func (b *badgerDB) TransactionsForAddress(address string) (txs types.Transaction
 	return
 }
 
-func (b *badgerDB) TransactionsFromBlock(number, limit uint64) (types.Transactions, error) {
-	// TODO: feature
-	return nil, nil
+func (b *badgerDB) SetAddressOwner(addressOwner types.AddressOwner) error {
+	return b.db.Update(func(txn *badger.Txn) error {
+		data, err := encodeData(addressOwner)
+		if err != nil {
+			return err
+		}
+		return txn.Set(prefixAddressOwner(addressOwner.Address), data)
+	})
 }
 
-func (b *badgerDB) SetAddressOwner(address string, owner types.Owner, match float64) error {
-	// TODO: feature
-	return nil
-}
+func (b *badgerDB) GetAddressOwner(address string) (addressOwner *types.AddressOwner, err error) {
+	err = b.db.View(func(txn *badger.Txn) error {
+		item, err := txn.Get(prefixAddressOwner(address))
+		if err != nil {
+			return err
+		}
 
-func (b *badgerDB) GetAddressOwner(address string) (*types.AddressOwner, error) {
-	// TODO: feature
+		return item.Value(func(val []byte) error {
+			return decodeData(addressOwner, val)
+		})
+	})
 	return nil, nil
 }

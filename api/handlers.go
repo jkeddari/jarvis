@@ -93,12 +93,6 @@ func (s *Server) handlerTransactionByHash() http.HandlerFunc {
 	}
 }
 
-func (s *Server) handlerTransactionsList() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// TODO : implement feature
-	}
-}
-
 func (s *Server) handlerBlockByNumber() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var block *types.Block
@@ -172,6 +166,27 @@ func (s *Server) handlerAddressTransactions() http.HandlerFunc {
 
 func (s *Server) handlerAddressOwner() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// TODO: implement feature
+		var owner *types.AddressOwner
+		var err error
+
+		vars := mux.Vars(r)
+		blockchain := vars["blockchain"]
+		switch types.Blockchain(blockchain) {
+		case types.Ethereum:
+			owner, err = s.ethClient.GetAddressOwner(vars["address"])
+		}
+		if err != nil {
+			s.Logger.Error().Err(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		s.writeJSON(w, owner)
+	}
+}
+
+func (s *Server) handlerPostAddressOwner() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// TODO : implement feature
 	}
 }

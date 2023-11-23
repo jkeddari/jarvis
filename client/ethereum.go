@@ -147,11 +147,6 @@ func (c *ETHClient) GetTransactionByHash(hash string) (*types.Transaction, error
 	return tx, c.db.AddTransactions(*tx)
 }
 
-func (c *ETHClient) GetTransactionsFromNumber(number, limit uint64) (types.Transactions, error) {
-	// TODO : get block if not exist on db
-	return c.db.TransactionsFromBlock(number, limit)
-}
-
 func (c *ETHClient) GetTransactionsForAddress(address string) (types.Transactions, error) {
 	if !common.IsHexAddress(address) {
 		return nil, errors.New("bad ethereum address")
@@ -264,8 +259,14 @@ func (c *ETHClient) GetAddressOwner(address string) (*types.AddressOwner, error)
 	return c.db.GetAddressOwner(address)
 }
 
-func (c *ETHClient) SetAddressOwner(address string, owner types.Owner, match float64) error {
-	return c.db.SetAddressOwner(address, owner, match)
+func (c *ETHClient) SetAddressOwner(address string, owner types.Owner, match float32) error {
+	addressOwner := types.AddressOwner{
+		Chain:   types.Ethereum,
+		Address: address,
+		Owner:   owner,
+		Match:   match,
+	}
+	return c.db.SetAddressOwner(addressOwner)
 }
 
 func (c *ETHClient) proccessBlock(ethBlock *ethtypes.Block) (*types.Block, error) {

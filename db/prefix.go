@@ -33,3 +33,7 @@ func prefixGetTxByBlockNumber(number uint64) []byte {
 func prefixGetTxBySender(to string) []byte {
 	return []byte(fmt.Sprintf("tx_sender:%s", to))
 }
+
+func prefixAddressOwner(address string) []byte {
+	return []byte(fmt.Sprintf("address_owner:%s", address))
+}

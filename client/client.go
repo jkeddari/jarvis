@@ -26,8 +26,7 @@ type Client interface {
 	GetBlockByNumber(number uint64) (*types.Block, error)
 	GetBalance(address string) (*types.Balance, error)
 	GetTransactionByHash(hash string) (*types.Transaction, error)
-	GetTransactionsFromNumber(number, limit uint64) (types.Transactions, error)
 	GetTransactionsForAddress(address string) (types.Transactions, error)
 	GetAddressOwner(address string) (*types.AddressOwner, error)
-	SetAddressOwner(address string, owner types.Owner, match float64) error
+	SetAddressOwner(address string, owner types.Owner, match float32) error
 }
