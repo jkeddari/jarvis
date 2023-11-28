@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/jkeddari/jarvis/api"
@@ -14,22 +15,27 @@ import (
 
 func main() {
 	fmt.Println("Starting Chains Tracker...")
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
+	godotenv.Load()
 
 	url := os.Getenv("RPC_URL")
 	if url == "" {
 		log.Fatal("no url found")
 	}
+
 	streamURL := os.Getenv("STREAM_URL")
 	if url == "" {
 		log.Fatal("no url found")
 	}
+
 	ethDBPath := os.Getenv("DB_ETH_PATH")
 	if ethDBPath == "" {
 		log.Fatal("no ethereum db path found")
+	}
+
+	maxConnEnv := os.Getenv("MAX_CONN")
+	maxConn, err := strconv.Atoi(maxConnEnv)
+	if err != nil {
+		log.Println(err)
 	}
 
 	logger := zerolog.New(
@@ -41,15 +47,16 @@ func main() {
 			DBPath:           ethDBPath,
 			URL:              url,
 			StreamURL:        streamURL,
-			ConcurrentNumber: 1000,
+			ConcurrentNumber: maxConn,
 			Logger:           &logger,
 		},
 	}
 
 	app, err := api.NewServer(conf)
-	app.Logger = logger
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	app.Logger = logger
 	app.Listen("localhost:8080")
 }

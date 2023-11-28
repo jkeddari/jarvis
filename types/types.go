@@ -22,10 +22,10 @@ type Transaction struct {
 type Transactions []Transaction
 
 type Block struct {
-	Number    uint64       `json:"number"`
-	Hash      string       `json:"hash"`
-	Timestamp uint64       `json:"timestamps"`
-	TXS       Transactions `json:"transactions"`
+	Number             uint64 `json:"number"`
+	Hash               string `json:"hash"`
+	Timestamp          uint64 `json:"timestamps"`
+	TransactionsNumber int    `json:"transactions_number"`
 }
 
 type AddressOwner struct {

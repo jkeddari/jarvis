@@ -38,10 +38,10 @@ var txs = types.Transactions{
 }
 
 var testBlock = &types.Block{
-	Number:    42,
-	Hash:      "djkskljsksjfkjdsmkfjsqmfdjqsmlfjqsmljfmklqsjdfklj",
-	Timestamp: 12874,
-	TXS:       txsBlock,
+	Number:             42,
+	Hash:               "djkskljsksjfkjdsmkfjsqmfdjqsmlfjqsmljfmklqsjdfklj",
+	Timestamp:          12874,
+	TransactionsNumber: len(txsBlock),
 }
 
 var txsBlock = types.Transactions{

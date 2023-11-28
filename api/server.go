@@ -42,6 +42,7 @@ func NewServer(conf Config) (*Server, error) {
 	s.router.Methods("GET").Path("/{blockchain}/status").HandlerFunc(s.handlerBlockchainStatus())
 	s.router.Methods("GET").Path("/{blockchain}/transaction/{hash}").HandlerFunc(s.handlerTransactionByHash())
 	s.router.Methods("GET").Path("/{blockchain}/block/{number}").HandlerFunc(s.handlerBlockByNumber())
+	s.router.Methods("GET").Path("/{blockchain}/block/{number}/transactions").HandlerFunc(s.handlerTXSBlockByNumber())
 	s.router.Methods("GET").Path("/{blockchain}/address/{hash}/balance").HandlerFunc(s.handlerAddressBalance())
 	s.router.Methods("GET").Path("/{blockchain}/address/{hash}/transactions").HandlerFunc(s.handlerAddressTransactions())
 	s.router.Methods("GET").Path("/blockchain}/address/{hash}/owner").HandlerFunc(s.handlerAddressOwner())

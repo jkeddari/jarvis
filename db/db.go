@@ -2,12 +2,6 @@ package db
 
 import "github.com/jkeddari/jarvis/types"
 
-type dbBlock struct {
-	Number    uint64
-	Hash      string
-	Timestamp uint64
-}
-
 type DB interface {
 	// DropAll erase all database.
 	DropAll() error
@@ -35,6 +29,9 @@ type DB interface {
 
 	// TransactionsForAddress returns all transactions send by the given address.
 	TransactionsForAddress(address string) (types.Transactions, error)
+
+	// TransactionsForBlock returs all transactions present into the given block number.
+	TransactionsForBlock(numer uint64) (types.Transactions, error)
 
 	// SetAddressOwner write new address owner into database.
 	SetAddressOwner(addressOwner types.AddressOwner) error

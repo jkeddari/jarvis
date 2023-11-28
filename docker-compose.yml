@@ -1,0 +1,14 @@
+version: "3.7"
+
+services:
+  jarvis:
+    image: jarvis
+    build:
+      context: .
+    environment:
+        - RPC_URL=https://cloudflare-eth.com
+        - STREAM_URL=wss://mainnet.infura.io/ws/v3/4a8a21bb79a941559477173d40a3901b
+        - DB_ETH_PATH=/tmp/jarvis_eth_db
+        - MAX_CONN=10000
+    volumes:
+      - /tmp/jarvis_eth_db:/tmp/jarvis_eth_db

@@ -74,11 +74,39 @@ func NewClient(config *Config) (Client, error) {
 	return client, nil
 }
 
+func (c *ETHClient) Run() error {
+	client, err := ethclient.DialContext(c.ctx, c.streamURL)
+	if err != nil {
+		return err
+	}
+
+	headers := make(chan *ethtypes.Header)
+	sub, err := client.SubscribeNewHead(c.ctx, headers)
+	if err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case err := <-sub.Err():
+			return err
+		case header := <-headers:
+			block, err := client.BlockByHash(c.ctx, header.Hash())
+			if err != nil {
+				c.logger.Error().Err(err)
+				continue
+			}
+			if _, err := c.proccessBlock(block); err != nil {
+				c.logger.Error().Err(err)
+			}
+		}
+	}
+}
+
 func (c *ETHClient) GetStatus() (*types.BlockchainStatus, error) {
 	return c.db.Status()
 }
 
-// GetBlockByNumber returns block by given number.
 func (c *ETHClient) GetBlockByNumber(number uint64) (*types.Block, error) {
 	if block, err := c.db.BlockByNumber(number); err == nil {
 		return block, err
@@ -99,7 +127,10 @@ func (c *ETHClient) GetBlockByNumber(number uint64) (*types.Block, error) {
 	return b, err
 }
 
-// GetBalance returns address Ethereum balance
+func (c *ETHClient) GetBlockTransactions(number uint64) (types.Transactions, error) {
+	return c.db.TransactionsForBlock(number)
+}
+
 func (c *ETHClient) GetBalance(address string) (*types.Balance, error) {
 	if !common.IsHexAddress(address) {
 		return nil, errors.New("bad ethereum address")
@@ -121,7 +152,6 @@ func (c *ETHClient) GetBalance(address string) (*types.Balance, error) {
 	}, nil
 }
 
-// GetTransactionByHash returns transaction by given hash.
 func (c *ETHClient) GetTransactionByHash(hash string) (*types.Transaction, error) {
 	if tx, err := c.db.TransactionByHash(hash); err == nil {
 		return tx, err
@@ -154,38 +184,53 @@ func (c *ETHClient) GetTransactionsForAddress(address string) (types.Transaction
 	return c.db.TransactionsForAddress(address)
 }
 
-// Run subscribe to new block on Ethereum blockchain.
-func (c *ETHClient) Run() {
-	client, err := ethclient.DialContext(c.ctx, c.streamURL)
-	if err != nil {
-		c.logger.Fatal().Err(err)
-	}
+func (c *ETHClient) GetAddressOwner(address string) (*types.AddressOwner, error) {
+	return c.db.GetAddressOwner(address)
+}
 
-	headers := make(chan *ethtypes.Header)
-	c.clientMutex.Lock()
-	sub, err := client.SubscribeNewHead(c.ctx, headers)
-	c.clientMutex.Unlock()
-	if err != nil {
-		c.logger.Fatal().Err(err)
+func (c *ETHClient) SetAddressOwner(address string, owner types.Owner, match float32) error {
+	addressOwner := types.AddressOwner{
+		Chain:   types.Ethereum,
+		Address: address,
+		Owner:   owner,
+		Match:   match,
 	}
+	return c.db.SetAddressOwner(addressOwner)
+}
 
-	for {
-		select {
-		case err := <-sub.Err():
-			c.logger.Error().Err(err)
-		case header := <-headers:
-			c.clientMutex.Lock()
-			block, err := c.client.BlockByHash(c.ctx, header.Hash())
-			c.clientMutex.Unlock()
-			if err != nil {
-				c.logger.Error().Err(err)
-				continue
-			}
-			if _, err := c.proccessBlock(block); err != nil {
-				c.logger.Error().Err(err)
-			}
+func (c *ETHClient) proccessBlock(ethBlock *ethtypes.Block) (*types.Block, error) {
+	c.once.Do(func() {
+		status := types.BlockchainStatus{
+			StartNumber: ethBlock.NumberU64(),
+			EndNumber:   ethBlock.NumberU64(),
 		}
+		c.db.SetStatus(status)
+	})
+
+	startTime := time.Now()
+
+	b := types.Block{
+		Number:             ethBlock.NumberU64(),
+		Hash:               ethBlock.Hash().String(),
+		Timestamp:          ethBlock.Time(),
+		TransactionsNumber: len(ethBlock.Transactions()),
 	}
+
+	err := c.db.AddBlock(b)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = c.processTXs(ethBlock.Transactions()...)
+	if err != nil {
+		return nil, err
+	}
+
+	duration := time.Now().Sub(startTime)
+
+	c.logger.Info().Any("block_number", b.Number).Any("process_duration", duration.String()).Msg("block added")
+
+	return &b, c.db.UpdateNumber(b.Number)
 }
 
 func (c *ETHClient) processTX(ethTX *ethtypes.Transaction) (tx *types.Transaction, err error) {
@@ -223,8 +268,7 @@ func (c *ETHClient) processTX(ethTX *ethtypes.Transaction) (tx *types.Transactio
 	return tx, err
 }
 
-// processTXs convert ethereum transactions to types.Transaction,
-// it using multiple ethclient concurrently.
+// processTXs convert ethereum transactions to types.Transaction, it using multiple ethclient concurrently.
 func (c *ETHClient) processTXs(ethTXS ...*ethtypes.Transaction) (types.Transactions, error) {
 	var wg sync.WaitGroup
 	var m sync.Mutex
@@ -253,56 +297,6 @@ func (c *ETHClient) processTXs(ethTXS ...*ethtypes.Transaction) (types.Transacti
 
 	wg.Wait()
 	return txs, c.db.AddTransactions(txs...)
-}
-
-func (c *ETHClient) GetAddressOwner(address string) (*types.AddressOwner, error) {
-	return c.db.GetAddressOwner(address)
-}
-
-func (c *ETHClient) SetAddressOwner(address string, owner types.Owner, match float32) error {
-	addressOwner := types.AddressOwner{
-		Chain:   types.Ethereum,
-		Address: address,
-		Owner:   owner,
-		Match:   match,
-	}
-	return c.db.SetAddressOwner(addressOwner)
-}
-
-func (c *ETHClient) proccessBlock(ethBlock *ethtypes.Block) (*types.Block, error) {
-	c.once.Do(func() {
-		status := types.BlockchainStatus{
-			StartNumber: ethBlock.NumberU64(),
-			EndNumber:   ethBlock.NumberU64(),
-		}
-		c.db.SetStatus(status)
-	})
-
-	startTime := time.Now()
-
-	b := types.Block{
-		Number:    ethBlock.NumberU64(),
-		Hash:      ethBlock.Hash().String(),
-		Timestamp: ethBlock.Time(),
-		TXS:       types.Transactions{},
-	}
-
-	err := c.db.AddBlock(b)
-	if err != nil {
-		return nil, err
-	}
-
-	txs, err := c.processTXs(ethBlock.Transactions()...)
-	if err != nil {
-		return nil, err
-	}
-	b.TXS = txs
-
-	duration := time.Now().Sub(startTime)
-
-	c.logger.Info().Any("block_number", b.Number).Any("process_duration", duration.String()).Msg("block added")
-
-	return &b, c.db.UpdateNumber(b.Number)
 }
 
 func weiToEther(wei *big.Int) float64 {

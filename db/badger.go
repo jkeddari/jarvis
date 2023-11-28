@@ -14,7 +14,7 @@ import (
 //	    "status" => types.Status
 //
 // - Block Storage :
-//  	"block:{number}" => dbBlock
+//  	"block:{number}" => types.Block
 //
 // - Transaction storage :
 //   	"tx_hash:{hash}" = > types.Transaction
@@ -106,25 +106,14 @@ func (b *badgerDB) UpdateNumber(number uint64) error {
 }
 
 func (b *badgerDB) AddBlock(block types.Block) error {
-	bl := dbBlock{
-		Number:    block.Number,
-		Hash:      block.Hash,
-		Timestamp: block.Timestamp,
-	}
-
-	data, err := encodeData(bl)
+	data, err := encodeData(block)
 	if err != nil {
 		return err
 	}
 
-	err = b.db.Update(func(txn *badger.Txn) error {
+	return b.db.Update(func(txn *badger.Txn) error {
 		return txn.Set(prefixBlock(block.Number), data)
 	})
-	if err != nil {
-		return err
-	}
-
-	return b.AddTransactions(block.TXS...)
 }
 
 func (b *badgerDB) Status() (status *types.BlockchainStatus, err error) {
@@ -140,22 +129,7 @@ func (b *badgerDB) Status() (status *types.BlockchainStatus, err error) {
 	return
 }
 
-func (b *badgerDB) blockByNumber(number uint64) (block dbBlock, err error) {
-	err = b.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get(prefixBlock(number))
-		if err != nil {
-			return err
-		}
-
-		return item.Value(func(val []byte) error {
-			return decodeData(&block, val)
-		})
-	})
-
-	return
-}
-
-func (b *badgerDB) getBlockTXS(number uint64) (txs types.Transactions, err error) {
+func (b *badgerDB) TransactionsForBlock(number uint64) (txs types.Transactions, err error) {
 	err = b.db.View(func(txn *badger.Txn) error {
 		it := txn.NewIterator(badger.DefaultIteratorOptions)
 		defer it.Close()
@@ -178,23 +152,19 @@ func (b *badgerDB) getBlockTXS(number uint64) (txs types.Transactions, err error
 	return
 }
 
-func (b *badgerDB) BlockByNumber(number uint64) (*types.Block, error) {
-	bl, err := b.blockByNumber(number)
-	if err != nil {
-		return nil, err
-	}
+func (b *badgerDB) BlockByNumber(number uint64) (block *types.Block, err error) {
+	err = b.db.View(func(txn *badger.Txn) error {
+		item, err := txn.Get(prefixBlock(number))
+		if err != nil {
+			return err
+		}
 
-	txs, err := b.getBlockTXS(number)
-	if err != nil {
-		return nil, err
-	}
+		return item.Value(func(val []byte) error {
+			return decodeData(&block, val)
+		})
+	})
 
-	return &types.Block{
-		Number:    bl.Number,
-		Hash:      bl.Hash,
-		Timestamp: bl.Timestamp,
-		TXS:       txs,
-	}, nil
+	return
 }
 
 func (b *badgerDB) TransactionByHash(hash string) (tx *types.Transaction, err error) {

@@ -121,6 +121,34 @@ func (s *Server) handlerBlockByNumber() http.HandlerFunc {
 	}
 }
 
+func (s *Server) handlerTXSBlockByNumber() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var txs types.Transactions
+		var err error
+
+		vars := mux.Vars(r)
+		blockchain := vars["blockchain"]
+
+		number, err := strconv.ParseUint(vars["number"], 10, 64)
+		if err != nil {
+			s.writeError(w, err)
+			return
+		}
+
+		switch types.Blockchain(blockchain) {
+		case types.Ethereum:
+			txs, err = s.ethClient.GetBlockTransactions(number)
+		}
+
+		if err != nil {
+			s.writeError(w, err)
+			return
+		}
+
+		s.writeJSON(w, txs)
+	}
+}
+
 func (s *Server) handlerAddressBalance() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var balance *types.Balance
