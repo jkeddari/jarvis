@@ -18,10 +18,6 @@ func prefixTxBySender(address, hash string) []byte {
 	return []byte(fmt.Sprintf("tx_sender:%s:%s", address, hash))
 }
 
-func prefixTxByReceiver(address, hash string) []byte {
-	return []byte(fmt.Sprintf("tx_receiver:%s:%s", address, hash))
-}
-
 func prefixTxByBlockNumber(number uint64, hash string) []byte {
 	return []byte(fmt.Sprintf("tx_block:%d:%s", number, hash))
 }

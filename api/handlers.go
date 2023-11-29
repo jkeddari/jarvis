@@ -180,7 +180,7 @@ func (s *Server) handlerAddressTransactions() http.HandlerFunc {
 		blockchain := vars["blockchain"]
 		switch types.Blockchain(blockchain) {
 		case types.Ethereum:
-			txs, err = s.ethClient.GetTransactionsForAddress(vars["address"])
+			txs, err = s.ethClient.GetTransactionsForAddress(vars["hash"])
 		}
 		if err != nil {
 			s.Logger.Error().Err(err)

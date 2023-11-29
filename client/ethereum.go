@@ -29,7 +29,6 @@ type ETHClient struct {
 	once         sync.Once
 	ctx          context.Context
 	url          string
-	streamURL    string
 	nbConcurrent int
 }
 
@@ -59,7 +58,6 @@ func NewClient(config *Config) (Client, error) {
 		db:           db,
 		ctx:          config.Ctx,
 		url:          config.URL,
-		streamURL:    config.StreamURL,
 		nbConcurrent: defaultMaxConcurrents,
 	}
 
@@ -75,7 +73,7 @@ func NewClient(config *Config) (Client, error) {
 }
 
 func (c *ETHClient) Run() error {
-	client, err := ethclient.DialContext(c.ctx, c.streamURL)
+	client, err := ethclient.DialContext(c.ctx, c.url)
 	if err != nil {
 		return err
 	}
@@ -203,6 +201,11 @@ func (c *ETHClient) proccessBlock(ethBlock *ethtypes.Block) (*types.Block, error
 		status := types.BlockchainStatus{
 			StartNumber: ethBlock.NumberU64(),
 			EndNumber:   ethBlock.NumberU64(),
+		}
+
+		s, err := c.db.Status()
+		if err == nil && s != nil {
+			status.StartNumber = s.StartNumber
 		}
 		c.db.SetStatus(status)
 	})

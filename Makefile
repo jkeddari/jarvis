@@ -10,7 +10,4 @@ build-image: compile
 clean:
 	rm -rf build
 
-compile:
-	GOOS=linux GOARCH=arm64 go build -o build/linux-arm64/ ./...
-
 all: build
