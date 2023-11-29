@@ -1,9 +1,12 @@
-FROM golang:1.21 as base
+FROM golang:1.21 as dev
 
-FROM base as dev
-
-
-ADD build/linux-arm64/server /jarvis/server
 WORKDIR /jarvis
+COPY . /jarvis
 
-CMD ["./server"]
+RUN make clean && make build
+
+
+FROM debian:stable
+COPY --from=dev /jarvis/build/server /jarvis/
+ENTRYPOINT ["/jarvis/server"]
+

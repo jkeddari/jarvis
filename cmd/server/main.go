@@ -22,11 +22,6 @@ func main() {
 		log.Fatal("no url found")
 	}
 
-	streamURL := os.Getenv("STREAM_URL")
-	if url == "" {
-		log.Fatal("no url found")
-	}
-
 	ethDBPath := os.Getenv("DB_ETH_PATH")
 	if ethDBPath == "" {
 		log.Fatal("no ethereum db path found")
@@ -46,7 +41,6 @@ func main() {
 		ETHConfig: client.Config{
 			DBPath:           ethDBPath,
 			URL:              url,
-			StreamURL:        streamURL,
 			ConcurrentNumber: maxConn,
 			Logger:           &logger,
 		},

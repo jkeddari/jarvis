@@ -84,9 +84,6 @@ func (b *badgerDB) AddTransactions(txs ...types.Transaction) error {
 				return err
 			}
 
-			if err := txn.Set(prefixTxByReceiver(tx.To, tx.Hash), []byte(tx.Hash)); err != nil {
-				return err
-			}
 			if err := txn.Set(prefixTxByBlockNumber(tx.BlockNumber, tx.Hash), []byte(tx.Hash)); err != nil {
 				return err
 			}
@@ -100,8 +97,10 @@ func (b *badgerDB) UpdateNumber(number uint64) error {
 	if err != nil {
 		return err
 	}
-
-	status.EndNumber = number
+	status.BlockCount++
+	if number > status.EndNumber {
+		status.EndNumber = number
+	}
 	return b.SetStatus(*status)
 }
 
@@ -187,7 +186,6 @@ func (b *badgerDB) TransactionsForAddress(address string) (txs types.Transaction
 		it := txn.NewIterator(badger.DefaultIteratorOptions)
 		defer it.Close()
 		prefix := prefixGetTxBySender(address)
-
 		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
 			item := it.Item()
 

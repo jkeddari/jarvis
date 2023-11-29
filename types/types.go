@@ -5,6 +5,7 @@ package types
 type BlockchainStatus struct {
 	StartNumber uint64 `json:"start_number"`
 	EndNumber   uint64 `json:"end_number"`
+	BlockCount  uint64 `json:"block_count"`
 }
 
 type BlockchainsStatus []BlockchainStatus
