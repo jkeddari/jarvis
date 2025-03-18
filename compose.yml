@@ -1,5 +1,3 @@
-version: "3.7"
-
 services:
   jarvis:
     image: jarvis
@@ -12,3 +10,9 @@ services:
         - MAX_CONN=10000
     volumes:
       - /tmp/jarvis_eth_db:/tmp/jarvis_eth_db
+
+  nats:
+    image: 'nats'
+    labels:
+      com.dnsdock.alias: nats.docker
+    attach: false
