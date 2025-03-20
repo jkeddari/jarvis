@@ -1,12 +1,11 @@
-FROM golang:1.21 as dev
+FROM golang:1.24 AS builder
+ARG TARGET
+WORKDIR /app
+COPY . .
+RUN CGO_ENABLED=0 go build -o build/app $TARGET
 
-WORKDIR /jarvis
-COPY . /jarvis
 
-RUN make clean && make build
-
-
-FROM debian:stable
-COPY --from=dev /jarvis/build/server /jarvis/
-ENTRYPOINT ["/jarvis/server"]
-
+FROM gcr.io/distroless/static-debian11
+COPY --from=builder /app/build/app /app
+USER nonroot:nonroot
+ENTRYPOINT ["/app"]

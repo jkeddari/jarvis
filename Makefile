@@ -1,13 +1,18 @@
+BINS := sniffer-bitcoin sniffer-ethereum
+
 build:
 	go build -o build/ ./...
 
 test:
 	go test ./...
 
-build-image: compile
-	docker build -t jarvis .
+
+dockerbuild-%:
+	docker build --build-arg TARGET=./cmd/$* -t $* .
+
+docker: $(addprefix dockerbuild-,$(BINS))
+
 
 clean:
 	rm -rf build
 
-all: build

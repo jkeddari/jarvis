@@ -9,27 +9,27 @@ import (
 )
 
 type Client interface {
-	Run(chan types.Transaction) error
+	Run(chan *types.Transaction) error
+	Stop() error
 }
 
 type sniffer struct {
 	logger     *slog.Logger
 	client     Client
 	blockchain types.Blockchain
-	txstream   chan types.Transaction
+	txstream   chan *types.Transaction
 	natsClient *nats.Conn
 	subject    string
 }
 
 type Config struct {
-	Blockchain types.Blockchain
-	URL        string
-	Subject    string
-	Option     []nats.Option
+	Blockchain types.Blockchain `env:"SNIFFER_BLOCKCHAIN"`
+	URL        string           `env:"NATS_URL"`
+	Subject    string           `env:"NATS_SUBJECT"`
 }
 
 func NewSniffer(c *Config, client Client, logger *slog.Logger) (*sniffer, error) {
-	conn, err := nats.Connect(c.URL, c.Option...)
+	conn, err := nats.Connect(c.URL)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +38,7 @@ func NewSniffer(c *Config, client Client, logger *slog.Logger) (*sniffer, error)
 		logger:     logger,
 		client:     client,
 		blockchain: c.Blockchain,
-		txstream:   make(chan types.Transaction, 100),
+		txstream:   make(chan *types.Transaction),
 		natsClient: conn,
 		subject:    c.Subject,
 	}, nil
@@ -56,14 +56,18 @@ func (s *sniffer) Run() error {
 			if err != nil {
 				s.logger.Error("nats", "Err", err)
 			}
+
 		}
-		// TODO: Close this goroutine on Stop
 	}()
 	return s.client.Run(s.txstream)
 }
 
 func (s *sniffer) Stop() error {
+	s.logger.Info("stopping sniffer...")
+	close(s.txstream)
+	s.client.Stop()
 	err := s.natsClient.Drain()
 	s.natsClient.Close()
+
 	return err
 }

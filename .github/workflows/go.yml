@@ -1,28 +1,66 @@
-# This workflow will build a golang project
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
-
-name: Go
+name: Docker Build & Push
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}
+  PLATFORMS: linux/amd64
+  BINS: sniffer-ethereum
 
 jobs:
-
-  build:
+  docker-build-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
     steps:
-    - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.21'
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Build
-      run: go build -v ./...
+      - name: Log in to DockerHub
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.CT_TOKEN }}
 
-    - name: Test
-      run: go test -v ./...
+      - name: Prepare metadata
+        id: meta
+        uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
+        with:
+          images: ${{ env.REGISTRY }}/jkeddari/jarvis/sniffer-ethereum
+        # tags: |
+        #   type=ref,event=branch
+        #   type=ref,event=pr
+        #   type=ref,event=tag
+
+
+      - name: Build and push eth binary
+        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
+        with:
+          platforms: ${{ env.PLATFORMS }}
+          push: true
+          build-args: |
+            TARGET=./cmd/sniffer-ethereum
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      # - name: Build and Push all binaries
+      #   run: |
+      #     for BIN in $BINS; do
+      #       docker buildx build \
+      #         --platform $PLATFORMS \
+      #         --build-arg TARGET=./cmd/$BIN \
+      #         -t ${{ github.repository_owner }}/$BIN:latest \
+      #         --push .
+      #     done

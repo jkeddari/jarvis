@@ -1,0 +1,15 @@
+services:
+  sniffer-ethereum:
+    image: ghcr.io/jkeddari/jarvis/sniffer-ethereum:main
+    environment:
+        - ETHCONFIG_URL="https://mainnet.infura.io/v3/4a8a21bb79a941559477173d40a3901b"
+        - ETHCONFIG_MINIMUMAMOUNT=1
+        - SNIFFER_BLOCKCHAIN="ethereum"
+        - NATS_URL="nats://nats:4222"
+        - NATS_SUBJECT="ethereum_txs"
+
+  nats:
+    image: 'nats'
+    labels:
+      com.dnsdock.alias: nats.docker
+    attach: false
